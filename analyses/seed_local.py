@@ -3,67 +3,34 @@ from matplotlib import colors
 import glob
 import warnings
 warnings.filterwarnings('ignore')
-import numpy as np
 import natsort
-import pandas as pd
 from matplotlib.colors import LinearSegmentedColormap
-import pingouin as pg
 import cmasher as cmr
 import bct
 from neuromaps import images
-import glob
 import subprocess
 from datetime import datetime
-import natsort
 import numpy as np
 import pandas as pd
 import pingouin as pg
 import nibabel as nib
 from brainspace.mesh.mesh_io import read_surface
 from surfplot import Plot
-import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import nibabel as nib
 from nilearn.plotting import cm
-import cmasher as cmr
 from brainspace.utils.parcellation import map_to_labels
-from surfplot import Plot
 from surfplot.utils import add_fslr_medial_wall
 pjoin = os.path.join
 
 class Config(object):
 
-   #config_path = os.path.dirname(os.path.abspath(__file__))
-    #resources = pjoin(config_path, '../resources')
-    #fmriprep_dir = '/Raid6/raw/VMR-Learning-Complete/derivatives/2020/fmriprep'
-
-    # parcellation
-    #atlas = "Volumes/KeannaRowchan/statistical-manifolds/statistical-manifolds/resources/atlas/Schaefer2018_1000Parcels_7Networks_order.dlabel.nii"
     atlas = "/Users/keannarowchan/Desktop/server_to_desktop/Schaefer2018_1000Parcels_7Networks_order.dlabel.nii"
-    #adjacency = pjoin(resources, 'atlases', 'Schaefer2018_1000Parcels_7Networks_adjacency.tsv')
-    
-    # data directories
-    #data_dir = pjoin(config_path, '../data')
-    #dataset = 'schaefer1000-7networks-final'
-    #dataset_dir = "Users/keannarowchan/Desktop/server_to_desktop"
-    #tseries = pjoin(dataset_dir, 'timeseries')
-    #connect = pjoin(dataset_dir, 'connectivity')
-
-    # paths expected to change
-    #gradients = pjoin(dataset_dir, 'pca-gradients-centered-ses-01')
-
     k = 3
-    #results = pjoin(config_path, f'../results/k{k}')
-    #figures = pjoin(config_path, f'../figures/fig-components-pngs-k{k}')
-
-    #os.makedirs(results, exist_ok=True)
-    #os.makedirs(figures, exist_ok=True)
 
 def _align_labels_to_atlas(x, source_labels, target_labels):
-    """Match labels to corresponding vertex labels"""
 
     target = np.unique(target_labels)[1:]
     df1 = pd.DataFrame(target, index=target)
@@ -71,16 +38,6 @@ def _align_labels_to_atlas(x, source_labels, target_labels):
     return pd.concat([df1, df2], axis=1).iloc[:, 1:].values
 
 def get_surfaces(style='inflated', load=True):
-    """Fetch surface files of a given surface style
-    Parameters
-    ----------
-    style : str, optional
-        Type of surface to return, by default 'inflated'
-    Returns
-    -------
-    dict
-        Dictionary of left (lh) and right (rh) surface files
-    """
     config = Config()
     surf_path = "/Users/keannarowchan/Desktop/server_to_desktop/surfaces/"
     surfaces = get_files([surf_path, f'*.{style}_*'])
@@ -99,7 +56,6 @@ def set_plotting():
     sns.set_context('paper')
 
 def get_sulc():
-    """Get sulcal depth map for plotting style"""
     config = Config()
     surf_path = "/Users/keannarowchan/Desktop/server_to_desktop/surfaces"
     img = os.path.join(surf_path, 'S1200.sulc_MSMAll.32k_fs_LR.dscalar.nii')
@@ -107,29 +63,6 @@ def get_sulc():
     return add_fslr_medial_wall(vertices)
 
 def weights_to_vertices(data, target, labels=None):
-    """Map weights (e.g., gradient loadings) to vertices on surface
-    If `labels` is not specifiied, values in `data` are mapped to `target` in 
-    ascending order.
-    Parameters
-    ----------
-    data : numpy.ndarray or str
-        Array containing region weights of shape (n_regions, n_features). If
-        more than one feature/column is detected, then brain maps for each 
-        feature are created. If a string, must be a valid CIFTI file name
-    target : str
-        CIFTI file name (dlabel or dscalar) that defines vertex-space for 
-        mapping 
-    labels : numpy.ndarray
-        Numeric labels for each region (i.e. row of `data`) as they appear in 
-        the atlas vertices. Required when `data` contains fewer regions than
-        total regions in `target`, as is the case when `data` is a result of 
-        some thresholded/indexing (e.g., `data` only contains weights of 
-        significant regions). By default None.
-    Returns
-    -------
-    numpy.ndarray
-        Array of mapped vertices
-    """
     if isinstance(target, str): 
         vertices = nib.load(target).get_fdata().ravel()
     else:
@@ -161,31 +94,9 @@ def fdr_correct(x, colname='p-unc'):
 
 def schaefer1000_roi_ix():
     x = np.arange(1000) + 1
-    # drop indices of missing regions in Schaefer 1000. These values/regions 
-    # appear in the dlabel.nii labels, but not in the actual vertex array, as
-    # they have been 'upsampled-out' of the atlas
     return x[~np.isin(x, [533, 903])]
 
 def get_files(pattern, force_list=False):
-    """Extracts files in alphanumerical order that match the provided glob 
-    pattern.
-    Parameters
-    ----------
-    pattern : str or list
-        Glob pattern or a list of strings that will be joined together to form 
-        a single glob pattern.  
-    force_list : bool, optional
-        Force output to be a list. If False (default), a string is returned in
-        cases where only one file is detected.
-    Returns
-    -------
-    str or list
-        Detected file(s).
-    Raises
-    ------
-    FileNotFoundError
-        No files were detected using the input pattern.
-    """
     if isinstance(pattern, list):
         pattern = pjoin(*pattern)
     
@@ -199,20 +110,6 @@ def get_files(pattern, force_list=False):
         return files
 
 def find_cluster_seed(df, method='middle'):
-    """Identify cluster seeds using region with max or closest-to-mean T value
-    in contrast
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        Contrast data (e.g., Early vs Baseline)
-    method : str, optional
-        Selection approach, by default 'middle', which is the closest-to-mean
-        region
-    Returns
-    -------
-    str
-        Seed region name
-    """
     if method == 'max':
         return df.loc[df['T'].idxmax()]
     elif method == 'middle':
@@ -220,24 +117,10 @@ def find_cluster_seed(df, method='middle'):
 
 
 def connect_seed(cmats, seed_region):
-    """Extract seed connectivity by isolating row in connectivity matrix
-    Parameters
-    ----------
-    cmats : list
-        Connectivity matrices
-    seed_region : str
-        Seed region name
-    Returns
-    -------
-    pandas.DataFrame
-        Region connectivity profiles across subjects
-    """
     list_ = []
     for i in cmats:
         cmat = pd.read_table(i, index_col=0)
-        # isolate row of seed region
-        res = pd.DataFrame(cmat.loc[seed_region].reset_index().values, 
-                           columns=['roi', 'r'])
+        res = pd.DataFrame(cmat.loc[seed_region].reset_index().values, columns=['roi', 'r'])
         
         res['roi_ix'] = schaefer1000_roi_ix()
 
@@ -252,23 +135,6 @@ def connect_seed(cmats, seed_region):
 
 
 def seed_analysis(contrasts, clust_num, cmats, epochs):
-    """Perform seed connectivity contrast analysis
-    Parameters
-    ----------
-    contrasts : pandas.DataFrame
-        Eccentricity contrast results
-    clust_num : int
-        Eccentricity contrast cluster number
-    cmats : List
-        Connectivity matrices
-    epochs : _type_
-        Task epochs to compare connectivity, not necessarily the same task 
-        epochs from the eccentricity contrast  
-    Returns
-    -------
-    pandas.DataFrame, str, pandas.DataFrame
-        Seed connectivity results (region and networks), and seed name
-    """
     seed = find_cluster_seed(contrasts.query("cluster == @clust_num"))
     connectivity = connect_seed(cmats, seed['roi'])
 
@@ -276,7 +142,6 @@ def seed_analysis(contrasts, clust_num, cmats, epochs):
     res = df.groupby(['roi', 'roi_ix'], sort=False) \
             .apply(pg.pairwise_ttests, dv='r', within='epoch', subject='sub') \
             .reset_index()
-    # swap sign so that B condition is the positive condition
     res['T'] = -res['T']
     res['sig'] = (res['p-unc'] < .05).astype(float)
 
@@ -289,27 +154,6 @@ def seed_analysis(contrasts, clust_num, cmats, epochs):
 
 
 def plot_seed_map(data, seed_region, sig_style=None, use_fdr=True, seed_color="Greens", show_left_vis=False):
-    """Generate seed connectivity contrast maps
-    Parameters
-    ----------
-    data : pandas.DataFrame
-        Region-wise seed connectivity results
-    seed_region : str
-        Seed region name
-    sig_style : str, optional
-        Significance indication, by default None
-    use_fdr : bool, optional
-        If showing significance, show FDR-corrected results, by default True
-    seed_color : str, optional
-        Seed region color, by default 'yellow'
-    show_left_vis : bool, optional
-        Show left visual cortex, which is necessary for the visual seed only, 
-        by default False
-    Returns
-    -------
-    matplotlib.figure.Figure
-        Seed contrast stat map
-    """
     if use_fdr:
         sig_regions = data.query("sig_corrected == 1")
     else:
@@ -323,7 +167,6 @@ def plot_seed_map(data, seed_region, sig_style=None, use_fdr=True, seed_color="G
                             sig_regions['roi_ix'].values)
     z = weights_to_vertices(seed.values, Config().atlas, data['roi_ix'].values)
     seed_cmap = seed_color
-    #seed_cmap = colors.LinearSegmentedColormap.from_list('regions', [seed_color, 'k'], N=2)
 
     surfs = get_surfaces()
     sulc = get_sulc()
@@ -333,7 +176,7 @@ def plot_seed_map(data, seed_region, sig_style=None, use_fdr=True, seed_color="G
         p.add_layer(data=sulc, cmap='gray', cbar=False)
         #p.add_layer(np.nan_to_num(z), cmap=seed_cmap, cbar=False)
     else:    
-        p = Plot(surfs['lh'], surfs['rh'], views='posterior')
+        p = Plot(surfs['lh'], surfs['rh'])
         p.add_layer(data=sulc, cmap='gray', cbar=False)
 
     vmax = np.nanmax(np.abs(x))
@@ -360,10 +203,10 @@ def plot_seed_map(data, seed_region, sig_style=None, use_fdr=True, seed_color="G
 
 def main():
     config = Config()
-    cmats = get_files("/Users/keannarowchan/Desktop/server_to_desktop/connectivity/sub*/sub*.tsv")
-    ttest_data = pd.read_table("/Users/keannarowchan/Desktop/server_to_desktop/ecc_ttest_stats.tsv")
+    cmats = get_files("/Users/keannarowchan/Desktop/statistical-manifolds/data/connectivity/sub*/sub*.tsv")
+    ttest_data = pd.read_table("/Users/keannarowchan/Desktop/statistical-manifolds/data/ecc_ttest_stats.tsv")
 
-    fig_dir = "/Users/keannarowchan/Desktop/server_to_desktop/"
+    fig_dir = "/Users/keannarowchan/Desktop/statistical-manifolds/figures/seed/"
     os.makedirs(fig_dir, exist_ok=True)
 
     network_data = []
